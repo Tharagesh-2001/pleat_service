@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'pleats',
     'services',
+    'customer',
     'rest_framework',
     'corsheaders',
 ]
@@ -58,6 +59,11 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
+]
+
+AUTHENTICATION_BACKENDS = [
+    'customer.authentication.EmailBackend',  # Add this line
+    'django.contrib.auth.backends.ModelBackend',  # Keep the default backend
 ]
 
 ROOT_URLCONF = 'pleat_service.urls'
@@ -115,12 +121,20 @@ AUTH_PASSWORD_VALIDATORS = [
 
 REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',  # Replace DjangoModelPermissionsOrAnonReadOnly
-    ]
+        'rest_framework.permissions.AllowAny',
+    ],
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+           'rest_framework_simplejwt.authentication.JWTAuthentication',
+       ),
 }
 
+AUTH_USER_MODEL = 'customer.CustomUser'
+
 CORS_ALLOWED_ORIGINS = [
-    'http://localhost:8080',  # Adjust if your React app runs on a different port
+    'http://localhost:8080',
+    'http://192.168.0.22:8080',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
 ]
 
 # Internationalization
@@ -144,3 +158,17 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+# settings.py
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'tharagesh.cs@gmail.com'   # Shop owner email
+EMAIL_HOST_PASSWORD = 'REMOVED_EMAIL_PASSWORD'     # Use Gmail App Password, not your login password
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+
+GOOGLE_CLIENT_ID = 'REMOVED_GOOGLE_CLIENT_ID'
+GOOGLE_CLIENT_SECRET = 'REMOVED_GOOGLE_CLIENT_SECRET'
