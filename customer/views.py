@@ -138,11 +138,12 @@
 
 
 import uuid
+import random
 from django.core.mail import send_mail
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .serializers import RegisterSerializer, UserSerializer
+from .serializers import RegisterSerializer, UserSerializer, OTPRequestSerializer, OTPVerifySerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.urls import reverse
 from django.contrib.auth import authenticate, update_session_auth_hash
@@ -151,6 +152,8 @@ from django.utils.decorators import method_decorator
 from django.conf import settings
 from .models import CustomUser
 from rest_framework.permissions import IsAuthenticated
+from django.utils import timezone
+from datetime import timedelta
 
 @method_decorator(csrf_exempt, name='dispatch')
 class RegisterView(APIView):
@@ -194,10 +197,16 @@ class RegisterView(APIView):
 @method_decorator(csrf_exempt, name='dispatch')
 class LoginView(APIView):
     def post(self, request):
-        email = request.data.get('email')
+        identifier = request.data.get('identifier')  # Can be email or username
         password = request.data.get('password')
         
-        user = authenticate(request, email=email, password=password)
+        if not identifier or not password:
+            return Response({'error': 'Identifier and password are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Try to authenticate with email or username
+        user = authenticate(request, email=identifier, password=password) or \
+               authenticate(request, username=identifier, password=password)
+        
         if user:
             if not user.is_verified:
                 return Response({'error': 'Please verify your email before logging in.'}, status=status.HTTP_401_UNAUTHORIZED)
@@ -213,6 +222,60 @@ class LoginView(APIView):
                 'refresh': str(refresh)
             }, status=status.HTTP_200_OK)
         return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+
+@method_decorator(csrf_exempt, name='dispatch')
+class OTPRequestView(APIView):
+    def post(self, request):
+        serializer = OTPRequestSerializer(data=request.data)
+        if serializer.is_valid():
+            phone = serializer.validated_data['phone']
+            user = CustomUser.objects.get(phone=phone)
+            
+            # Generate 6-digit OTP
+            otp = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+            user.otp = otp
+            user.otp_expiry = timezone.now() + timedelta(minutes=10)  # OTP valid for 10 minutes
+            user.save()
+
+            try:
+                send_mail(
+                    'Your OTP Code',
+                    f'Your OTP code is {otp}. It is valid for 10 minutes.',
+                    settings.EMAIL_HOST_USER,
+                    [user.email],
+                    fail_silently=False,
+                )
+            except Exception as e:
+                print(f"Email sending failed: {e}")
+
+            return Response({'message': 'OTP sent to your email.'}, status=status.HTTP_200_OK)
+        return Response({'error': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+@method_decorator(csrf_exempt, name='dispatch')
+class OTPVerifyView(APIView):
+    def post(self, request):
+        serializer = OTPVerifySerializer(data=request.data)
+        if serializer.is_valid():
+            phone = serializer.validated_data['phone']
+            user = CustomUser.objects.get(phone=phone)
+            
+            user.otp = None
+            user.otp_expiry = None
+            user.save()
+
+            refresh = RefreshToken.for_user(user)
+            return Response({
+                'user': {
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'phone': user.phone
+                },
+                'access': str(refresh.access_token),
+                'refresh': str(refresh),
+                'message': 'Login successful.'
+            }, status=status.HTTP_200_OK)
+        return Response({'error': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 @method_decorator(csrf_exempt, name='dispatch')
 class VerifyEmailView(APIView):
@@ -266,7 +329,7 @@ class ChangePasswordView(APIView):
 
         user.set_password(new_password)
         user.save()
-        update_session_auth_hash(request, user)  # Update session to prevent logout
+        update_session_auth_hash(request, user)
         return Response({'message': 'Password changed successfully'}, status=status.HTTP_200_OK)
 
 class UpdateProfilePictureView(APIView):
@@ -285,7 +348,6 @@ class UpdateProfilePictureView(APIView):
         user.profile_picture = profile_picture
         user.save()
 
-        # Return the full URL
         request_full_path = request.build_absolute_uri()
         profile_picture_url = user.profile_picture.url
         if not profile_picture_url.startswith('http'):

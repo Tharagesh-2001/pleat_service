@@ -34,7 +34,6 @@
 from rest_framework import serializers
 from .models import CustomUser
 from django.conf import settings
-from django.templatetags.static import static
 
 class UserSerializer(serializers.ModelSerializer):
     profile_picture = serializers.SerializerMethodField()
@@ -44,15 +43,11 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ['id', 'username', 'email', 'phone', 'profile_picture']
     
     def get_profile_picture(self, obj):
-        # If the user has a profile picture, return the full URL
         if obj.profile_picture:
             request = self.context.get('request')
             if request:
-                # Use request.build_absolute_uri for full URL
                 return request.build_absolute_uri(obj.profile_picture.url)
-            else:
-                # Fallback to relative URL
-                return obj.profile_picture.url
+            return obj.profile_picture.url
         return None
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -77,3 +72,24 @@ class RegisterSerializer(serializers.ModelSerializer):
             phone=validated_data.get('phone', '')
         )
         return user
+
+class OTPRequestSerializer(serializers.Serializer):
+    phone = serializers.CharField(max_length=15)
+
+    def validate_phone(self, value):
+        if not CustomUser.objects.filter(phone=value).exists():
+            raise serializers.ValidationError('No user found with this phone number.')
+        return value
+
+class OTPVerifySerializer(serializers.Serializer):
+    phone = serializers.CharField(max_length=15)
+    otp = serializers.CharField(max_length=6)
+
+    def validate(self, data):
+        try:
+            user = CustomUser.objects.get(phone=data['phone'])
+            if not user.otp or user.otp != data['otp'] or not user.is_otp_valid():
+                raise serializers.ValidationError('Invalid or expired OTP.')
+        except CustomUser.DoesNotExist:
+            raise serializers.ValidationError('No user found with this phone number.')
+        return data

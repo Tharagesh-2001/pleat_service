@@ -37,6 +37,7 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # Application definition
 
 INSTALLED_APPS = [
+    'jazzmin',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -46,6 +47,7 @@ INSTALLED_APPS = [
     'pleats',
     'services',
     'customer',
+    'appoint',
     'rest_framework',
     'corsheaders',
 ]
@@ -66,6 +68,20 @@ AUTHENTICATION_BACKENDS = [
     'customer.authentication.EmailBackend',  # Add this line
     'django.contrib.auth.backends.ModelBackend',  # Keep the default backend
 ]
+
+JAZZMIN_SETTINGS = {
+    "site_title": "Pleats Admin",
+    "site_header": "Pleats Management",
+    "welcome_sign": "Welcome to Pleats Dashboard",
+    "show_ui_builder": True,  # allows you to customize live from the browser
+    "theme": "flatly",  # built-in themes: flatly, cyborg, cosmo, etc.
+    "dark_mode_theme": "darkly",
+    "custom_css": None,
+    "custom_js": None,
+    "hide_models": ["auth.user"],
+    "usermenu_links": [],
+}
+
 
 ROOT_URLCONF = 'pleat_service.urls'
 
